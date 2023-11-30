@@ -167,6 +167,7 @@ Usage:
   php oil [t|test]
 
 Runtime options:
+  --config=<file>            # Use specified configuration file.  Defaults to fuel/core/phpunit.xml
   --file=<file>              # Run a test on a specific file only.
   --group=<group>            # Only runs tests from the specified group(s).
   --exclude-group=<group>    # Exclude tests from the specified group(s).
@@ -193,9 +194,13 @@ HELP;
 					{
 						$phpunit_command = \Config::get('oil.phpunit.binary_path', 'phpunit');
 
+						// Separator is different for Windows / *nix
+						$is_windows_os = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN');
+						$separator = $is_windows_os  ? ';' : ':';
+
 						// Check if we might be using the phar library
 						$is_phar = false;
-						foreach(explode(':', getenv('PATH')) as $path)
+						foreach(explode($separator, getenv('PATH')) as $path)
 						{
 							if (is_file($path.DS.$phpunit_command))
 							{
@@ -204,6 +209,10 @@ HELP;
 								fclose($handle);
 								if ($is_phar)
 								{
+									// Windows does not support shebang, so prefix PHP
+									if ($is_windows_os) {
+										$phpunit_command = 'php "'.$path.DS.$phpunit_command.'"';
+									}
 									break;
 								}
 							}
@@ -215,7 +224,7 @@ HELP;
 						@include_once $phpunit_autoload_path;
 
 						// Attempt to load PHUnit.  If it fails, we are done.
-						if ( ! $is_phar and ! class_exists('PHPUnit_Framework_TestCase'))
+						if ( ! $is_phar and ! class_exists('PHPUnit\Framework\TestCase'))
 						{
 							throw new Exception('PHPUnit does not appear to be installed.'.PHP_EOL.PHP_EOL."\tPlease visit http://phpunit.de and install.");
 						}
@@ -229,6 +238,9 @@ HELP;
 						{
 							$phpunit_config = COREPATH.'phpunit.xml';
 						}
+
+						// Check if phpunit config specified
+						\Cli::option('config') and $phpunit_config = \Cli::option('config');
 
 						// CD to the root of Fuel and call up phpunit with the path to our config
 						$command = 'cd '.DOCROOT.'; '.$phpunit_command.' -c "'.$phpunit_config.'"';
